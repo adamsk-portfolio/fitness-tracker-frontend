@@ -5,13 +5,13 @@ import App from './App';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import theme from './theme';
 
-import { AuthProvider } from '@/hooks/auth';   // <-- alias z tsconfig / vite
+import { AuthProvider } from '@/hooks/auth';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
-      <CssBaseline />            {/* globalny reset + dark-mode */}
-      <AuthProvider>             {/* kontekst przechowujący token + login/logout */}
+      <CssBaseline />
+      <AuthProvider>
         <App />
       </AuthProvider>
     </ThemeProvider>

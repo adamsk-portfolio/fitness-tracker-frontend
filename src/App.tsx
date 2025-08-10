@@ -34,27 +34,15 @@ function NavBar() {
         </Typography>
 
         {token ? (
-          /* menu po zalogowaniu */
           <Stack direction="row" spacing={1}>
-            <Button color="inherit" component={Link} to="/types">
-              Ćwiczenia
-            </Button>
-            <Button color="inherit" component={Link} to="/sessions">
-              Sesje
-            </Button>
-            <Button color="inherit" onClick={logout}>
-              Wyloguj
-            </Button>
+            <Button color="inherit" component={Link} to="/types">Ćwiczenia</Button>
+            <Button color="inherit" component={Link} to="/sessions">Sesje</Button>
+            <Button color="inherit" onClick={logout}>Wyloguj</Button>
           </Stack>
         ) : (
-          /* linki publiczne */
           <Stack direction="row" spacing={1}>
-            <Button color="inherit" component={Link} to="/login">
-              Logowanie
-            </Button>
-            <Button color="inherit" component={Link} to="/register">
-              Rejestracja
-            </Button>
+            <Button color="inherit" component={Link} to="/login">Logowanie</Button>
+            <Button color="inherit" component={Link} to="/register">Rejestracja</Button>
           </Stack>
         )}
       </Toolbar>
@@ -62,35 +50,37 @@ function NavBar() {
   );
 }
 
-/* ────────────────────────── Layout ────────────────────────── */
 function Layout() {
   return (
     <>
       <NavBar />
       <Container sx={{ mt: 4 }}>
-        <Outlet /> {/* w to miejsce React Router wstrzykuje podstrony */}
+        <Outlet />
       </Container>
     </>
   );
 }
 
-/* ────────────────────────── App (routing) ─────────────────── */
+function HomeRedirect() {
+  const { token } = useAuth();
+  return <Navigate to={token ? '/types' : '/login'} replace />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ——— PUBLIC ——— */}
+        <Route path="/"         element={<HomeRedirect />} />
         <Route path="/login"    element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* ——— PRIVATE (chronione) ——— */}
-        <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
-          <Route index          element={<Navigate to="/types" replace />} />
-          <Route path="types"   element={<ExerciseTypes />}     />
-          <Route path="sessions" element={<Sessions />}         />
+        <Route element={<PrivateRoute />}>
+          <Route element={<Layout />}>
+            <Route path="types"    element={<ExerciseTypes />} />
+            <Route path="sessions" element={<Sessions />} />
+          </Route>
         </Route>
 
-        {/* ——— 404 fallback ——— */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

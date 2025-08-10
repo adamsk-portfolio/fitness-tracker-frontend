@@ -11,11 +11,10 @@ import {
   CircularProgress,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import {
-  DataGrid,
-  GridColDef,
-  GridActionsCellItem,
-} from '@mui/x-data-grid';
+
+import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
+import type { GridColDef }               from '@mui/x-data-grid';
+
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';

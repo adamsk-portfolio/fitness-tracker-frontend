@@ -10,15 +10,14 @@ import {
   CircularProgress,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import {
-  DataGrid,
-  GridColDef,
-  GridActionsCellItem,
-} from '@mui/x-data-grid';
+
+import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
+import type { GridColDef } from '@mui/x-data-grid';
+
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import api from '@/api';      // ⬅ pamiętaj o poprawnym imporcie
+import api from '@/api';
 
 interface ExerciseType {
   id: number;
@@ -31,9 +30,9 @@ const newTypeSchema = z.object({
 type NewType = z.infer<typeof newTypeSchema>;
 
 export default function ExerciseTypes() {
-  const [rows, setRows]       = useState<ExerciseType[]>([]);
-  const [isLoading, setLoad]  = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [rows, setRows]      = useState<ExerciseType[]>([]);
+  const [isLoading, setLoad] = useState(true);
+  const [error, setError]    = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -79,11 +78,11 @@ export default function ExerciseTypes() {
   };
 
   const columns: GridColDef[] = [
-    { field: 'id', headerName: 'ID', width: 80 },
-    { field: 'name', headerName: 'Nazwa', flex: 1 },
+    { field: 'id',   headerName: 'ID',    width: 80 },
+    { field: 'name', headerName: 'Nazwa', flex: 1   },
     {
       field: 'actions',
-      type: 'actions',
+      type:  'actions',
       headerName: '',
       width: 80,
       getActions: (params) => [
