@@ -1,146 +1,146 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
+  Paper,
   Stack,
   TextField,
   Button,
-  Paper,
   Typography,
   Alert,
   CircularProgress,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-
-import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
-import type { GridColDef } from '@mui/x-data-grid';
-
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/services/api';
 
-interface ExerciseType {
-  id: number;
-  name: string;
-}
-
-const newTypeSchema = z.object({
-  name: z.string().min(2, 'Min. 2 znaki'),
-});
-type NewType = z.infer<typeof newTypeSchema>;
+type TypeRow = { id: number; name: string };
 
 export default function ExerciseTypes() {
-  const [rows, setRows]      = useState<ExerciseType[]>([]);
-  const [isLoading, setLoad] = useState(true);
-  const [error, setError]    = useState<string | null>(null);
+  const [rows, setRows] = useState<TypeRow[]>([]);
+  const [name, setName] = useState('');
+  const [isLoading, setLoading] = useState(true);
+  const [isSaving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const namesSet = useMemo(
+    () => new Set(rows.map(r => r.name.trim().toLowerCase())),
+    [rows]
+  );
 
   const load = useCallback(async () => {
     try {
-      setLoad(true);
-      const { data } = await api.get<ExerciseType[]>('/exercise-types');
+      setLoading(true);
+      const { data } = await api.get<TypeRow[]>('/exercise-types');
       setRows(data);
       setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.message ?? 'Nie udało się pobrać listy');
+      setError(err.response?.data?.message ?? 'Nie udało się pobrać typów ćwiczeń');
     } finally {
-      setLoad(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<NewType>({
-    resolver: zodResolver(newTypeSchema),
-  });
+  const onAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
 
-  const add = async (data: NewType) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError('Podaj nazwę ćwiczenia');
+      return;
+    }
+    if (namesSet.has(trimmed.toLowerCase())) {
+      setError('Taki typ już istnieje.');
+      return;
+    }
+
     try {
-      await api.post('/exercise-types', data);
-      reset();
-      load();
+      setSaving(true);
+      await api.post('/exercise-types', { name: trimmed });
+      setName('');
+      setSuccess('Dodano nowy typ.');
+      await load();
     } catch (err: any) {
-      setError(err.response?.data?.message ?? 'Nie udało się dodać typu');
+      const status = err.response?.status;
+      const msg = err.response?.data?.message;
+
+      if (status === 409) {
+        setError(msg || 'Taki typ już istnieje.');
+      } else {
+        setError(msg || 'Nie udało się dodać typu.');
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
-  const del = async (id: number) => {
+  const onDelete = async (id: number) => {
+    setError(null);
+    setSuccess(null);
     try {
       await api.delete(`/exercise-types/${id}`);
-      load();
+      setSuccess('Usunięto typ.');
+      await load();
     } catch (err: any) {
-      setError(err.response?.data?.message ?? 'Nie udało się usunąć typu');
+      setError(err.response?.data?.message ?? 'Nie udało się usunąć typu.');
     }
   };
-
-  const columns: GridColDef[] = [
-    { field: 'id',   headerName: 'ID',    width: 80 },
-    { field: 'name', headerName: 'Nazwa', flex: 1   },
-    {
-      field: 'actions',
-      type:  'actions',
-      headerName: '',
-      width: 80,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<DeleteIcon />}
-          label="Usuń"
-          onClick={() => del(params.id as number)}
-          showInMenu={false}
-        />,
-      ],
-    },
-  ];
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>
-        Typy ćwiczeń
-      </Typography>
+      <Typography variant="h5" gutterBottom>Typy ćwiczeń</Typography>
 
-      <Paper sx={{ p: 2, mb: 3 }} component="form" onSubmit={handleSubmit(add)}>
+      <Paper sx={{ p: 2, mb: 3 }} component="form" onSubmit={onAdd}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField
-            label="Nowy typ"
-            fullWidth
-            {...register('name')}
-            error={!!errors.name}
-            helperText={errors.name?.message}
+            label="Nazwa nowego typu"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onFocus={() => setSuccess(null)}
+            disabled={isSaving}
+            sx={{ minWidth: 240 }}
           />
           <Button
-            type="submit"
             variant="contained"
-            disabled={isSubmitting}
-            sx={{ whiteSpace: 'nowrap' }}
+            type="submit"
+            disabled={isSaving}
           >
-            {isSubmitting ? '...' : 'Dodaj'}
+            {isSaving ? 'Dodaję…' : 'Dodaj'}
           </Button>
         </Stack>
+        {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
       </Paper>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
 
       {isLoading ? (
         <CircularProgress />
       ) : (
-        <Paper sx={{ height: 500 }}>
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            pageSizeOptions={[5, 10, 25]}
-            initialState={{
-              pagination: { paginationModel: { pageSize: 10, page: 0 } },
-            }}
-            disableRowSelectionOnClick
-          />
+        <Paper sx={{ p: 1 }}>
+          {rows.length === 0 ? (
+            <Typography sx={{ p: 2, opacity: 0.7 }}>Brak typów — dodaj pierwszy powyżej.</Typography>
+          ) : (
+            <List dense>
+              {rows.map((r) => (
+                <ListItem
+                  key={r.id}
+                  secondaryAction={
+                    <IconButton edge="end" aria-label="delete" onClick={() => onDelete(r.id)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  }
+                >
+                  <ListItemText primary={r.name} />
+                </ListItem>
+              ))}
+            </List>
+          )}
         </Paper>
       )}
     </Box>
