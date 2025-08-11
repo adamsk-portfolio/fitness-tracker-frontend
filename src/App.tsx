@@ -12,6 +12,7 @@ import Login              from '@/pages/Login';
 import Register           from '@/pages/Register';
 import ExerciseTypes      from '@/pages/ExerciseTypes';
 import Sessions           from '@/pages/Sessions';
+import Goals              from '@/pages/Goals';
 import PrivateRoute       from '@/components/PrivateRoute';
 
 import {
@@ -37,6 +38,7 @@ function NavBar() {
           <Stack direction="row" spacing={1}>
             <Button color="inherit" component={Link} to="/types">Ćwiczenia</Button>
             <Button color="inherit" component={Link} to="/sessions">Sesje</Button>
+            <Button color="inherit" component={Link} to="/goals">Cele</Button>
             <Button color="inherit" onClick={logout}>Wyloguj</Button>
           </Stack>
         ) : (
@@ -78,6 +80,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="types"    element={<ExerciseTypes />} />
             <Route path="sessions" element={<Sessions />} />
+            <Route path="goals"    element={<Goals />} />
           </Route>
         </Route>
 

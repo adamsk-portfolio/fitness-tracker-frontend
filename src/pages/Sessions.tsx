@@ -17,7 +17,8 @@ interface Type {
 }
 
 interface SessionRow {
-  id: number;
+  db_id: number;
+  lp: number;
   exercise_type: string;
   duration: number;
   calories: number;
@@ -34,13 +35,10 @@ type NewSession = z.infer<typeof newSessionSchema>;
 function fmtDate(value: unknown): string {
   if (!value) return '—';
   const raw = String(value);
-
   const d1 = new Date(raw);
   if (!Number.isNaN(d1.getTime())) return d1.toLocaleString();
-
   const d2 = new Date(raw.replace(' ', 'T'));
   if (!Number.isNaN(d2.getTime())) return d2.toLocaleString();
-
   return raw;
 }
 
@@ -53,15 +51,17 @@ export default function Sessions() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
+
       const [{ data: typesData }, { data: sessData }] = await Promise.all([
         api.get<Type[]>('/exercise-types'),
-        api.get('/sessions'),
+        api.get('/sessions', { params: { page: 1, page_size: 1000 } }),
       ]);
       setTypes(typesData);
 
       const itemsRaw = Array.isArray(sessData) ? sessData : (sessData?.items ?? []);
-      const items: SessionRow[] = itemsRaw.map((it: any) => ({
-        id: it.id,
+      const items: SessionRow[] = itemsRaw.map((it: any, idx: number) => ({
+        db_id: it.id,
+        lp: idx + 1,
         exercise_type: it.exercise_type,
         duration: it.duration,
         calories: it.calories,
@@ -80,9 +80,7 @@ export default function Sessions() {
   useEffect(() => { load(); }, [load]);
 
   const {
-    register,
-    handleSubmit,
-    reset,
+    register, handleSubmit, reset,
     formState: { errors, isSubmitting },
   } = useForm<NewSession>({
     resolver: zodResolver(newSessionSchema),
@@ -103,9 +101,9 @@ export default function Sessions() {
     }
   };
 
-  const del = async (id: number) => {
+  const del = async (db_id: number) => {
     try {
-      await api.delete(`/sessions/${id}`);
+      await api.delete(`/sessions/${db_id}`);
       load();
     } catch (err: any) {
       setError(err.response?.data?.message ?? 'Nie udało się usunąć sesji');
@@ -113,8 +111,8 @@ export default function Sessions() {
   };
 
   const columns: GridColDef[] = [
-    { field: 'id', headerName: 'ID', width: 70 },
-    { field: 'exercise_type', headerName: 'Typ', flex: 1 },
+    { field: 'lp', headerName: 'Lp.', width: 80, sortable: false },
+    { field: 'exercise_type', headerName: 'Typ', flex: 1, minWidth: 160 },
     { field: 'duration', headerName: 'Minuty', width: 110 },
     { field: 'calories', headerName: 'Kcal', width: 110 },
     {
@@ -129,12 +127,17 @@ export default function Sessions() {
       },
     },
     {
-      field: 'actions', type: 'actions', headerName: '', width: 80,
+      field: 'actions',
+      type: 'actions',
+      headerName: '',
+      width: 80,
       getActions: (params) => [
         <GridActionsCellItem
           key="del"
-          icon={<DeleteIcon />} label="Usuń"
-          onClick={() => del(params.id as number)} showInMenu={false}
+          icon={<DeleteIcon />}
+          label="Usuń"
+          onClick={() => del((params.row as SessionRow).db_id)}
+          showInMenu={false}
         />,
       ],
     },
@@ -188,12 +191,14 @@ export default function Sessions() {
       {isLoading ? (
         <CircularProgress />
       ) : (
-        <Paper sx={{ height: 500 }}>
+        <Paper sx={{ height: 520 }}>
           <DataGrid
             rows={rows}
             columns={columns}
-            pageSizeOptions={[5, 10, 25]}
-            initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
+            // KLUCZEM wiersza jest db_id – unikalny w całej bazie
+            getRowId={(row) => (row as SessionRow).db_id}
+            pageSizeOptions={[5, 10, 25, 50]}
+            initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
             disableRowSelectionOnClick
           />
         </Paper>
