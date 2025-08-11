@@ -17,7 +17,7 @@ import type { GridColDef } from '@mui/x-data-grid';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import api from '@/api';
+import api from '@/services/api';
 
 interface ExerciseType {
   id: number;
