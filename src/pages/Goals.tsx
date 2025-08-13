@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
-  Box, Paper, Stack, TextField, MenuItem, Button, Typography, Alert, CircularProgress, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions,
+  Box, Paper, Stack, TextField, MenuItem, Button, Typography, Alert, CircularProgress, Snackbar,
+  Dialog, DialogTitle, DialogContent, DialogActions, Grid, useMediaQuery, useTheme,
 } from '@mui/material'
 import MuiAlert from '@mui/material/Alert'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -12,8 +13,10 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import api from '@/services/api'
+
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 
 type Metric = 'duration' | 'calories' | 'sessions'
@@ -32,7 +35,14 @@ interface GoalRow {
   exercise_type: string | null
 }
 
-/** ---- Zod ---- */
+type Filters = {
+  metric: '' | Metric
+  period: '' | Period
+  typeId: string
+  from: string
+  to: string
+}
+
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/
 const schema = z.object({
   description: z.string().min(3, 'Za krótki opis'),
@@ -48,7 +58,6 @@ const schema = z.object({
 }, { message: 'Data „Od” musi być ≤ „Do”', path: ['end_date'] })
 type FormT = z.infer<typeof schema>
 
-/** ---- helpers ---- */
 const dash = (v: unknown) => (v == null || v === '' ? '—' : String(v))
 const dashNum = (v: unknown) => (v == null || v === '' ? '—' : Number(v).toLocaleString())
 const dashDate = (v: unknown) => {
@@ -72,6 +81,18 @@ const toInputDate = (iso: string | null) => {
   return `${y}-${m}-${day}`
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  'Aktywne': '#4caf50',
+  'Przyszłe': '#ffb300',
+  'Po terminie': '#f44336',
+  'Bez dat': '#9e9e9e',
+}
+const METRIC_COLORS: Record<string, string> = {
+  'Czas (min)': '#42a5f5',
+  'Kalorie': '#26a69a',
+  'Sesje': '#ab47bc',
+}
+
 export default function Goals() {
   const [types, setTypes] = useState<TypeOpt[]>([])
   const [rows, setRows] = useState<GoalRow[]>([])
@@ -82,11 +103,20 @@ export default function Goals() {
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 10 })
 
-  // EDIT modal
+  const [filters, setFilters] = useState<Filters>({
+    metric: '',
+    period: '',
+    typeId: '',
+    from: '',
+    to: '',
+  })
+
   const [editOpen, setEditOpen] = useState(false)
   const [editing, setEditing] = useState<GoalRow | null>(null)
 
-  /** typy ćwiczeń (raz) */
+  const theme = useTheme()
+  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'))
+
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -98,13 +128,20 @@ export default function Goals() {
     return () => { alive = false }
   }, [])
 
-  /** pobranie celów */
   const load = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       const { page, pageSize } = paginationModel
-      const gRes = await api.get('goals', { params: { page: page + 1, page_size: pageSize } })
+
+      const params: Record<string, any> = { page: page + 1, page_size: pageSize }
+      if (filters.metric) params.metric = filters.metric
+      if (filters.period) params.period = filters.period
+      if (filters.typeId) params.exercise_type_id = Number(filters.typeId)
+      if (filters.from) params.from = filters.from
+      if (filters.to) params.to = filters.to
+
+      const gRes = await api.get('goals', { params })
       const raw = gRes.data
       const itemsRaw = Array.isArray(raw) ? raw : (raw?.items ?? [])
       const items: GoalRow[] = (itemsRaw as any[]).map((it) => ({
@@ -126,11 +163,10 @@ export default function Goals() {
     } finally {
       setLoading(false)
     }
-  }, [paginationModel])
+  }, [paginationModel, filters])
 
   useEffect(() => { load() }, [load])
 
-  /** formularz DODAWANIA */
   const addForm = useForm<FormT>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -175,7 +211,6 @@ export default function Goals() {
     }
   }
 
-  /** formularz EDYCJI (osobny RHF) */
   const editForm = useForm<FormT>({ resolver: zodResolver(schema) })
   const openEdit = (row: GoalRow) => {
     setEditing(row)
@@ -199,9 +234,8 @@ export default function Goals() {
         period: data.period,
         metric: data.metric,
       }
-      // ▶ wysyłamy exercise_type_id tylko jeśli wybrano typ
-      if (data.typeId) {
-        payload.exercise_type_id = Number(data.typeId)
+      if (data.typeId !== undefined) {
+        payload.exercise_type_id = data.typeId ? Number(data.typeId) : null
       }
       if (data.start_date) payload.start_date = data.start_date
       if (data.end_date) payload.end_date = data.end_date
@@ -235,30 +269,47 @@ export default function Goals() {
     }
   }
 
-  /** STATYSTYKI (bieżąca strona) */
-  const stats = useMemo(() => {
-    const by = { duration: 0, calories: 0, sessions: 0 } as Record<Metric, number>
-    for (const r of rows) if (r.metric && by[r.metric] != null) by[r.metric]++
-    return { total, by }
-  }, [rows, total])
+  const today = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
 
-  /** DANE DO WYKRESU (bieżąca strona) */
-  const chartData = useMemo(() => {
-    const byCount = { duration: 0, calories: 0, sessions: 0 } as Record<Metric, number>
-    const bySum   = { duration: 0, calories: 0, sessions: 0 } as Record<Metric, number>
+  const charts = useMemo(() => {
+    let active = 0, future = 0, expired = 0, noDates = 0
+    const byMetric = { duration: 0, calories: 0, sessions: 0 } as Record<Metric, number>
+
     for (const r of rows) {
-      if (!r.metric) continue
-      byCount[r.metric]++
-      if (r.target_value != null && !Number.isNaN(Number(r.target_value))) {
-        bySum[r.metric] += Number(r.target_value)
+      if (r.metric) byMetric[r.metric]++
+
+      const s = r.start_date ? new Date(r.start_date) : null
+      const e = r.end_date ? new Date(r.end_date) : null
+      if (!s && !e) {
+        noDates++
+      } else {
+        const startOk = !s || s <= today
+        const endOk = !e || e >= today
+        if (s && s > today) future++
+        else if (e && e < today) expired++
+        else if (startOk && endOk) active++
+        else noDates++
       }
     }
-    return [
-      { name: 'Czas (min)', count: byCount.duration, sum: bySum.duration },
-      { name: 'Kalorie',   count: byCount.calories,  sum: bySum.calories },
-      { name: 'Sesje',     count: byCount.sessions,  sum: bySum.sessions },
-    ]
-  }, [rows])
+
+    return {
+      statusPie: [
+        { name: 'Aktywne', value: active },
+        { name: 'Przyszłe', value: future },
+        { name: 'Po terminie', value: expired },
+        { name: 'Bez dat', value: noDates },
+      ],
+      metricBar: [
+        { name: 'Czas (min)', count: byMetric.duration },
+        { name: 'Kalorie', count: byMetric.calories },
+        { name: 'Sesje', count: byMetric.sessions },
+      ],
+    }
+  }, [rows, today])
 
   const columns: GridColDef[] = [
     { field: 'id', headerName: 'ID', width: 70 },
@@ -281,40 +332,125 @@ export default function Goals() {
     },
   ]
 
+  const applyFilters = async () => {
+    setPaginationModel((m) => ({ ...m, page: 0 }))
+    await load()
+  }
+  const clearFilters = async () => {
+    setFilters({ metric: '', period: '', typeId: '', from: '', to: '' })
+    setPaginationModel((m) => ({ ...m, page: 0 }))
+    await load()
+  }
+
   return (
     <Box sx={{ p: 3 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
         <Typography variant="h5">Cele treningowe</Typography>
         <Button startIcon={<RefreshIcon />} onClick={() => load()} disabled={isLoading}>Odśwież</Button>
       </Stack>
 
-      {/* WYKRES: podsumowanie danych na bieżącej stronie */}
       <Paper sx={{ p: 2, mb: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>Podsumowanie na stronie</Typography>
-        <Box sx={{ width: '100%', height: 240 }}>
-          <ResponsiveContainer>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="count" name="Liczba celów" />
-              <Bar dataKey="sum" name="Suma wartości" />
-            </BarChart>
-          </ResponsiveContainer>
-        </Box>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField select label="Metryka" size="small" fullWidth value={filters.metric}
+              onChange={(e) => setFilters(f => ({ ...f, metric: e.target.value as Filters['metric'] }))}>
+              <MenuItem value="">— dowolna —</MenuItem>
+              <MenuItem value="duration">Czas (min)</MenuItem>
+              <MenuItem value="calories">Kalorie</MenuItem>
+              <MenuItem value="sessions">Sesje</MenuItem>
+            </TextField>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField select label="Okres" size="small" fullWidth value={filters.period}
+              onChange={(e) => setFilters(f => ({ ...f, period: e.target.value as Filters['period'] }))}>
+              <MenuItem value="">— dowolny —</MenuItem>
+              <MenuItem value="weekly">Tygodniowy</MenuItem>
+              <MenuItem value="monthly">Miesięczny</MenuItem>
+              <MenuItem value="yearly">Roczny</MenuItem>
+            </TextField>
+          </Grid>
+
+          <Grid item xs={12} sm={12} md={4}>
+            <TextField select label="Typ ćwiczenia" size="small" fullWidth value={filters.typeId}
+              onChange={(e) => setFilters(f => ({ ...f, typeId: e.target.value }))}>
+              <MenuItem value="">— dowolny —</MenuItem>
+              {types.map(t => <MenuItem key={t.id} value={String(t.id)}>{t.name}</MenuItem>)}
+            </TextField>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField label="Od" type="date" size="small" fullWidth InputLabelProps={{ shrink: true }}
+              value={filters.from} onChange={(e) => setFilters(f => ({ ...f, from: e.target.value }))} />
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField label="Do" type="date" size="small" fullWidth InputLabelProps={{ shrink: true }}
+              value={filters.to} onChange={(e) => setFilters(f => ({ ...f, to: e.target.value }))} />
+          </Grid>
+
+          <Grid item xs={12} md={12}>
+            <Stack direction="row" spacing={1} justifyContent={isSmDown ? 'stretch' : 'flex-end'}>
+              <Button variant="contained" onClick={applyFilters} fullWidth={isSmDown}>Filtruj</Button>
+              <Button onClick={clearFilters} fullWidth={isSmDown}>Wyczyść</Button>
+            </Stack>
+          </Grid>
+        </Grid>
       </Paper>
 
-      {/* QUICK STATS */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle1" sx={{ mb: 1 }}>Przegląd celów</Typography>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
+          <Box sx={{ flex: 1, height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Tooltip />
+                <Legend />
+                <Pie data={charts.statusPie} dataKey="value" nameKey="name" outerRadius={90} label>
+                  {charts.statusPie.map((entry) => (
+                    <Cell key={`status-${entry.name}`} fill={STATUS_COLORS[entry.name] || '#90a4ae'} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </Box>
+          <Box sx={{ flex: 1, height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={charts.metricBar} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count">
+                  {charts.metricBar.map((entry) => (
+                    <Cell key={`metric-${entry.name}`} fill={METRIC_COLORS[entry.name] || '#90caf9'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
+        </Stack>
+      </Paper>
+
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
-        <Paper sx={{ p: 2, flex: 1 }}><Typography variant="body2" color="text.secondary">Łącznie celów</Typography><Typography variant="h5">{stats.total}</Typography></Paper>
-        <Paper sx={{ p: 2, flex: 1 }}><Typography variant="body2" color="text.secondary">Czas (min) — strona</Typography><Typography variant="h5">{stats.by.duration}</Typography></Paper>
-        <Paper sx={{ p: 2, flex: 1 }}><Typography variant="body2" color="text.secondary">Kalorie — strona</Typography><Typography variant="h5">{stats.by.calories}</Typography></Paper>
-        <Paper sx={{ p: 2, flex: 1 }}><Typography variant="body2" color="text.secondary">Sesje — strona</Typography><Typography variant="h5">{stats.by.sessions}</Typography></Paper>
+        <Paper sx={{ p: 2, flex: 1 }}>
+          <Typography variant="body2" color="text.secondary">Łącznie celów</Typography>
+          <Typography variant="h5">{total}</Typography>
+        </Paper>
+        <Paper sx={{ p: 2, flex: 1 }}>
+          <Typography variant="body2" color="text.secondary">Czas (min)</Typography>
+          <Typography variant="h5">{charts.metricBar[0]?.count ?? 0}</Typography>
+        </Paper>
+        <Paper sx={{ p: 2, flex: 1 }}>
+          <Typography variant="body2" color="text.secondary">Kalorie</Typography>
+          <Typography variant="h5">{charts.metricBar[1]?.count ?? 0}</Typography>
+        </Paper>
+        <Paper sx={{ p: 2, flex: 1 }}>
+          <Typography variant="body2" color="text.secondary">Sesje</Typography>
+          <Typography variant="h5">{charts.metricBar[2]?.count ?? 0}</Typography>
+        </Paper>
       </Stack>
 
-      {/* FORM DODAWANIA */}
       <Paper sx={{ p: 2, mb: 3 }} component="form" onSubmit={handleSubmit(add)}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField label="Opis" sx={{ minWidth: 220 }} {...register('description')} error={!!errors.description} helperText={errors.description?.message} />
@@ -359,7 +495,6 @@ export default function Goals() {
         </Paper>
       )}
 
-      {/* EDIT MODAL */}
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>Edytuj cel</DialogTitle>
         <DialogContent dividers>
