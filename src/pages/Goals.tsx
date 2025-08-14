@@ -97,15 +97,15 @@ const toInputDate = (iso: string | null) => {
 }
 
 const PIE_STATUS_COLORS: Record<string, string> = {
-  'achieved': '#2e7d32',
-  'active': '#1976d2',
-  'overdue': '#d32f2f',
-  'future': '#757575',
+  achieved: '#2e7d32',
+  active: '#1976d2',
+  overdue: '#d32f2f',
+  future: '#757575',
 }
 const METRIC_COLORS: Record<string, string> = {
   'Czas (min)': '#42a5f5',
-  'Kalorie': '#26a69a',
-  'Sesje': '#ab47bc',
+  Kalorie: '#26a69a',
+  Sesje: '#ab47bc',
 }
 const statusChipColor = (s?: GoalProgress['status']): any => {
   switch (s) {
@@ -395,16 +395,18 @@ export default function Goals() {
   }, [rows])
 
   const columns: GridColDef[] = [
-    { field: 'id', headerName: 'ID', width: 70 },
-    { field: 'description', headerName: 'Opis', flex: 1, renderCell: (p) => <span title={String(p.row.description ?? '')}>{dash(p.row.description)}</span> },
-    { field: 'metric', headerName: 'Metryka', width: 120, renderCell: (p) => <span>{labelMetric(p.row.metric)}</span> },
-    { field: 'target_value', headerName: 'Cel', width: 95, renderCell: (p) => <span>{dashNum(p.row.target_value)}</span> },
-    { field: 'period', headerName: 'Okres', width: 120, renderCell: (p) => <span>{labelPeriod(p.row.period)}</span> },
-    { field: 'exercise_type', headerName: 'Typ ćwiczenia', width: 160, renderCell: (p) => <span>{dash(p.row.exercise_type)}</span> },
+    {
+      field: 'exercise_type',
+      headerName: 'Typ ćwiczenia',
+      minWidth: 180,
+      flex: 1,
+      renderCell: (p) => <span title={String(p.row.exercise_type ?? '')}>{dash(p.row.exercise_type)}</span>,
+    },
     {
       field: 'window',
       headerName: 'Okno',
-      width: 190,
+      minWidth: 240,
+      flex: 1,
       renderCell: (p) => {
         const w = p.row.progress?.window
         if (!w) return <span>—</span>
@@ -414,7 +416,8 @@ export default function Goals() {
     {
       field: 'progress_percent',
       headerName: 'Postęp',
-      width: 170,
+      minWidth: 220,
+      flex: 0.9,
       sortable: false,
       renderCell: (p) => {
         const percent: number = p.row.progress?.percent ?? 0
@@ -435,7 +438,8 @@ export default function Goals() {
     {
       field: 'remaining',
       headerName: 'Pozostało',
-      width: 120,
+      minWidth: 150,
+      flex: 0.6,
       renderCell: (p) => {
         const rem = p.row.progress?.remaining
         if (rem == null) return <span>—</span>
@@ -445,7 +449,8 @@ export default function Goals() {
     {
       field: 'progress_status',
       headerName: 'Status',
-      width: 130,
+      minWidth: 140,
+      flex: 0.55,
       sortable: false,
       renderCell: (p) => {
         const s = p.row.progress?.status
@@ -455,8 +460,9 @@ export default function Goals() {
     {
       field: 'actions',
       type: 'actions',
-      headerName: '',
-      width: 120,
+      headerName: 'Akcje',
+      minWidth: 140,
+      flex: 0.55,
       getActions: (params) => [
         <GridActionsCellItem key="quick" icon={<FitnessCenterIcon />} label="Dodaj sesję" onClick={() => openQuickSession(params.row as GoalRow)} />,
         <GridActionsCellItem key="edit" icon={<EditIcon />} label="Edytuj" onClick={() => openEdit(params.row as GoalRow)} />,
@@ -522,66 +528,21 @@ export default function Goals() {
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6} md={2}>
-            <TextField select label="Metryka" size="small" fullWidth value={filters.metric}
-              onChange={(e) => setFilters(f => ({ ...f, metric: e.target.value as Filters['metric'] }))}>
-              <MenuItem value="">— dowolna —</MenuItem>
-              <MenuItem value="duration">Czas (min)</MenuItem>
-              <MenuItem value="calories">Kalorie</MenuItem>
-              <MenuItem value="sessions">Sesje</MenuItem>
-            </TextField>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={2}>
-            <TextField select label="Okres" size="small" fullWidth value={filters.period}
-              onChange={(e) => setFilters(f => ({ ...f, period: e.target.value as Filters['period'] }))}>
-              <MenuItem value="">— dowolny —</MenuItem>
-              <MenuItem value="weekly">Tygodniowy</MenuItem>
-              <MenuItem value="monthly">Miesięczny</MenuItem>
-              <MenuItem value="yearly">Roczny</MenuItem>
-            </TextField>
-          </Grid>
-
-          <Grid item xs={12} sm={12} md={4}>
-            <TextField select label="Typ ćwiczenia" size="small" fullWidth value={filters.typeId}
-              onChange={(e) => setFilters(f => ({ ...f, typeId: e.target.value }))}>
-              <MenuItem value="">— dowolny —</MenuItem>
-              {types.map(t => <MenuItem key={t.id} value={String(t.id)}>{t.name}</MenuItem>)}
-            </TextField>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={2}>
-            <TextField label="Od" type="date" size="small" fullWidth InputLabelProps={{ shrink: true }}
-              value={filters.from} onChange={(e) => setFilters(f => ({ ...f, from: e.target.value }))} />
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={2}>
-            <TextField label="Do" type="date" size="small" fullWidth InputLabelProps={{ shrink: true }}
-              value={filters.to} onChange={(e) => setFilters(f => ({ ...f, to: e.target.value }))} />
-          </Grid>
-
           <Grid item xs={12}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems="center">
-              <Stack direction="row" spacing={1}>
-                <Button variant="contained" onClick={applyFilters}>Filtruj</Button>
-                <Button onClick={clearFilters}>Wyczyść</Button>
-              </Stack>
-
-              <ToggleButtonGroup
-                size="small"
-                color="primary"
-                value={statusFilter}
-                exclusive
-                onChange={(_, v) => v && setStatusFilter(v)}
-              >
-                <ToggleButton value="all">Wszystkie</ToggleButton>
-                <ToggleButton value="achieved">Osiągnięte</ToggleButton>
-                <ToggleButton value="active">Aktywne</ToggleButton>
-                <ToggleButton value="almost">Prawie gotowe</ToggleButton>
-                <ToggleButton value="overdue">Po terminie</ToggleButton>
-                <ToggleButton value="future">Przyszłe</ToggleButton>
-              </ToggleButtonGroup>
-            </Stack>
+            <ToggleButtonGroup
+              size="small"
+              color="primary"
+              value={statusFilter}
+              exclusive
+              onChange={(_, v) => v && setStatusFilter(v)}
+            >
+              <ToggleButton value="all">Wszystkie</ToggleButton>
+              <ToggleButton value="achieved">Osiągnięte</ToggleButton>
+              <ToggleButton value="active">Aktywne</ToggleButton>
+              <ToggleButton value="almost">Prawie gotowe</ToggleButton>
+              <ToggleButton value="overdue">Po terminie</ToggleButton>
+              <ToggleButton value="future">Przyszłe</ToggleButton>
+            </ToggleButtonGroup>
           </Grid>
         </Grid>
       </Paper>
@@ -652,8 +613,9 @@ export default function Goals() {
       {isLoading ? (
         <CircularProgress />
       ) : (
-        <Paper sx={{ height: 520 }}>
+        <Paper sx={{ width: '100%', overflowX: 'auto' }}>
           <DataGrid
+            autoHeight
             rows={filteredRows}
             columns={columns}
             getRowId={(row) => row.id}
@@ -664,7 +626,13 @@ export default function Goals() {
             onPaginationModelChange={(m) => setPaginationModel(m)}
             loading={isLoading}
             disableRowSelectionOnClick
+            disableColumnFilter
+            disableColumnMenu
             density="standard"
+            sx={{
+              minWidth: 980,
+              '& .MuiDataGrid-cell': { alignItems: 'center' },
+            }}
           />
         </Paper>
       )}
