@@ -1,12 +1,16 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Box, Paper, Stack, TextField, MenuItem, Button, Typography, Alert, CircularProgress, Snackbar,
-  Dialog, DialogTitle, DialogContent, DialogActions, Grid, useMediaQuery, useTheme,
+  Dialog, DialogTitle, DialogContent, DialogActions, Grid, useMediaQuery, useTheme, Chip, LinearProgress,
+  ToggleButton, ToggleButtonGroup, Card, CardContent, Collapse, IconButton
 } from '@mui/material'
 import MuiAlert from '@mui/material/Alert'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import RefreshIcon from '@mui/icons-material/Refresh'
+import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 import { useForm } from 'react-hook-form'
@@ -23,6 +27,16 @@ type Metric = 'duration' | 'calories' | 'sessions'
 type Period = 'weekly' | 'monthly' | 'yearly'
 
 interface TypeOpt { id: number; name: string }
+
+interface GoalProgress {
+  value: number
+  target: number
+  percent: number
+  remaining: number
+  status: 'active' | 'achieved' | 'overdue' | 'future'
+  window: { start: string; end: string }
+}
+
 interface GoalRow {
   id: number
   description: string | null
@@ -33,6 +47,7 @@ interface GoalRow {
   end_date: string | null
   exercise_type_id: number | null
   exercise_type: string | null
+  progress?: GoalProgress | null
 }
 
 type Filters = {
@@ -81,16 +96,34 @@ const toInputDate = (iso: string | null) => {
   return `${y}-${m}-${day}`
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  'Aktywne': '#4caf50',
-  'Przyszłe': '#ffb300',
-  'Po terminie': '#f44336',
-  'Bez dat': '#9e9e9e',
+const PIE_STATUS_COLORS: Record<string, string> = {
+  'achieved': '#2e7d32',
+  'active': '#1976d2',
+  'overdue': '#d32f2f',
+  'future': '#757575',
 }
 const METRIC_COLORS: Record<string, string> = {
   'Czas (min)': '#42a5f5',
   'Kalorie': '#26a69a',
   'Sesje': '#ab47bc',
+}
+const statusChipColor = (s?: GoalProgress['status']): any => {
+  switch (s) {
+    case 'achieved': return 'success'
+    case 'active': return 'primary'
+    case 'overdue': return 'error'
+    case 'future': return 'default'
+    default: return 'default'
+  }
+}
+const statusLabel = (s?: GoalProgress['status']): string => {
+  switch (s) {
+    case 'achieved': return 'Osiągnięty'
+    case 'active': return 'Aktywny'
+    case 'overdue': return 'Po terminie'
+    case 'future': return 'Przyszły'
+    default: return '—'
+  }
 }
 
 export default function Goals() {
@@ -102,17 +135,14 @@ export default function Goals() {
   const [snack, setSnack] = useState<{ msg: string; sev: 'success' | 'error' } | null>(null)
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 10 })
-
-  const [filters, setFilters] = useState<Filters>({
-    metric: '',
-    period: '',
-    typeId: '',
-    from: '',
-    to: '',
-  })
+  const [filters, setFilters] = useState<Filters>({ metric: '', period: '', typeId: '', from: '', to: '' })
+  const [statusFilter, setStatusFilter] = useState<'all' | 'achieved' | 'active' | 'overdue' | 'future' | 'almost'>('all')
 
   const [editOpen, setEditOpen] = useState(false)
   const [editing, setEditing] = useState<GoalRow | null>(null)
+
+  const [qOpen, setQOpen] = useState(false)
+  const [qGoal, setQGoal] = useState<GoalRow | null>(null)
 
   const theme = useTheme()
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'))
@@ -134,7 +164,11 @@ export default function Goals() {
       setError(null)
       const { page, pageSize } = paginationModel
 
-      const params: Record<string, any> = { page: page + 1, page_size: pageSize }
+      const params: Record<string, any> = {
+        page: page + 1,
+        page_size: pageSize,
+        with_progress: true,
+      }
       if (filters.metric) params.metric = filters.metric
       if (filters.period) params.period = filters.period
       if (filters.typeId) params.exercise_type_id = Number(filters.typeId)
@@ -144,6 +178,7 @@ export default function Goals() {
       const gRes = await api.get('goals', { params })
       const raw = gRes.data
       const itemsRaw = Array.isArray(raw) ? raw : (raw?.items ?? [])
+
       const items: GoalRow[] = (itemsRaw as any[]).map((it) => ({
         id: it.id,
         description: it.description ?? null,
@@ -154,7 +189,9 @@ export default function Goals() {
         end_date: it.end_date ?? null,
         exercise_type_id: it.exercise_type_id ?? null,
         exercise_type: it.exercise_type ?? null,
+        progress: it.progress ?? null,
       }))
+
       setRows(items)
       setTotal((Array.isArray(raw) ? items.length : Number(raw?.total ?? items.length)) || 0)
     } catch (e: any) {
@@ -234,9 +271,7 @@ export default function Goals() {
         period: data.period,
         metric: data.metric,
       }
-      if (data.typeId !== undefined) {
-        payload.exercise_type_id = data.typeId ? Number(data.typeId) : null
-      }
+      if (data.typeId !== undefined) payload.exercise_type_id = data.typeId ? Number(data.typeId) : null
       if (data.start_date) payload.start_date = data.start_date
       if (data.end_date) payload.end_date = data.end_date
 
@@ -269,39 +304,78 @@ export default function Goals() {
     }
   }
 
-  const today = useMemo(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [])
+  const sessionSchema = z.object({
+    minutes: z.string().refine(v => Number(v) > 0, 'Minuty > 0'),
+    calories: z.string().optional(),
+  })
+  type SessionForm = z.infer<typeof sessionSchema>
+  const sessionForm = useForm<SessionForm>({ resolver: zodResolver(sessionSchema), defaultValues: { minutes: '', calories: '' } })
+
+  const openQuickSession = (row: GoalRow) => {
+    setQGoal(row)
+    sessionForm.reset({ minutes: '', calories: '' })
+    setQOpen(true)
+  }
+  const submitQuickSession = async (data: SessionForm) => {
+    if (!qGoal) return
+    try {
+      const payload: any = {
+        minutes: Number(data.minutes),
+        calories: data.calories ? Number(data.calories) : 0,
+      }
+      if (qGoal.exercise_type_id != null) payload.exercise_type_id = qGoal.exercise_type_id
+
+      await api.post('sessions', payload)
+      setSnack({ sev: 'success', msg: 'Sesja dodana' })
+      setQOpen(false)
+      setQGoal(null)
+      await load()
+    } catch (e: any) {
+      setSnack({ sev: 'error', msg: e.response?.data?.message ?? 'Nie udało się dodać sesji' })
+    }
+  }
+
+  const statsByStatus = useMemo(() => {
+    let achieved = 0, active = 0, overdue = 0, future = 0, almost = 0
+    for (const r of rows) {
+      const p = r.progress
+      if (!p) continue
+      if (p.status === 'achieved') achieved++
+      if (p.status === 'active') {
+        active++
+        if (p.percent >= 80) almost++
+      }
+      if (p.status === 'overdue') overdue++
+      if (p.status === 'future') future++
+    }
+    return { achieved, active, overdue, future, almost }
+  }, [rows])
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === 'all') return rows
+    if (statusFilter === 'almost') {
+      return rows.filter(r => r.progress && r.progress.status === 'active' && r.progress.percent >= 80 && r.progress.percent < 100)
+    }
+    return rows.filter(r => r.progress?.status === statusFilter)
+  }, [rows, statusFilter])
 
   const charts = useMemo(() => {
-    let active = 0, future = 0, expired = 0, noDates = 0
+    const cnt = { achieved: 0, active: 0, overdue: 0, future: 0 }
     const byMetric = { duration: 0, calories: 0, sessions: 0 } as Record<Metric, number>
 
     for (const r of rows) {
       if (r.metric) byMetric[r.metric]++
-
-      const s = r.start_date ? new Date(r.start_date) : null
-      const e = r.end_date ? new Date(r.end_date) : null
-      if (!s && !e) {
-        noDates++
-      } else {
-        const startOk = !s || s <= today
-        const endOk = !e || e >= today
-        if (s && s > today) future++
-        else if (e && e < today) expired++
-        else if (startOk && endOk) active++
-        else noDates++
-      }
+      const s = r.progress?.status as 'achieved'|'active'|'overdue'|'future'|undefined
+      if (!s) continue
+      cnt[s]++
     }
 
     return {
       statusPie: [
-        { name: 'Aktywne', value: active },
-        { name: 'Przyszłe', value: future },
-        { name: 'Po terminie', value: expired },
-        { name: 'Bez dat', value: noDates },
+        { name: 'achieved', value: cnt.achieved },
+        { name: 'active', value: cnt.active },
+        { name: 'overdue', value: cnt.overdue },
+        { name: 'future', value: cnt.future },
       ],
       metricBar: [
         { name: 'Czas (min)', count: byMetric.duration },
@@ -309,23 +383,82 @@ export default function Goals() {
         { name: 'Sesje', count: byMetric.sessions },
       ],
     }
-  }, [rows, today])
+  }, [rows])
+
+  const { avgPercentActive, bestPercent } = useMemo(() => {
+    const progs = rows.map(r => r.progress).filter(Boolean) as GoalProgress[]
+    const active = progs.filter(p => p.status === 'active' || p.status === 'achieved')
+    if (active.length === 0) return { avgPercentActive: 0, bestPercent: 0 }
+    const percents = active.map(p => p.percent || 0)
+    const avg = percents.reduce((a, b) => a + b, 0) / percents.length
+    return { avgPercentActive: Math.round(avg * 100) / 100, bestPercent: Math.max(...percents) }
+  }, [rows])
 
   const columns: GridColDef[] = [
     { field: 'id', headerName: 'ID', width: 70 },
     { field: 'description', headerName: 'Opis', flex: 1, renderCell: (p) => <span title={String(p.row.description ?? '')}>{dash(p.row.description)}</span> },
-    { field: 'metric', headerName: 'Metryka', width: 140, renderCell: (p) => <span>{labelMetric(p.row.metric)}</span> },
-    { field: 'target_value', headerName: 'Cel', width: 110, renderCell: (p) => <span>{dashNum(p.row.target_value)}</span> },
-    { field: 'period', headerName: 'Okres', width: 140, renderCell: (p) => <span>{labelPeriod(p.row.period)}</span> },
-    { field: 'exercise_type', headerName: 'Typ ćwiczenia', width: 170, renderCell: (p) => <span>{dash(p.row.exercise_type)}</span> },
-    { field: 'start_date', headerName: 'Od', width: 140, renderCell: (p) => <span>{dashDate(p.row.start_date)}</span> },
-    { field: 'end_date', headerName: 'Do', width: 140, renderCell: (p) => <span>{dashDate(p.row.end_date)}</span> },
+    { field: 'metric', headerName: 'Metryka', width: 120, renderCell: (p) => <span>{labelMetric(p.row.metric)}</span> },
+    { field: 'target_value', headerName: 'Cel', width: 95, renderCell: (p) => <span>{dashNum(p.row.target_value)}</span> },
+    { field: 'period', headerName: 'Okres', width: 120, renderCell: (p) => <span>{labelPeriod(p.row.period)}</span> },
+    { field: 'exercise_type', headerName: 'Typ ćwiczenia', width: 160, renderCell: (p) => <span>{dash(p.row.exercise_type)}</span> },
+    {
+      field: 'window',
+      headerName: 'Okno',
+      width: 190,
+      renderCell: (p) => {
+        const w = p.row.progress?.window
+        if (!w) return <span>—</span>
+        return <span>{dashDate(w.start)} — {dashDate(w.end)}</span>
+      },
+    },
+    {
+      field: 'progress_percent',
+      headerName: 'Postęp',
+      width: 170,
+      sortable: false,
+      renderCell: (p) => {
+        const percent: number = p.row.progress?.percent ?? 0
+        const status = p.row.progress?.status
+        return (
+          <Box sx={{ width: '100%' }}>
+            <LinearProgress variant="determinate" value={percent} color={statusChipColor(status)} sx={{ height: 8, borderRadius: 4 }} />
+            <Stack direction="row" justifyContent="space-between">
+              <Typography variant="caption" color="text.secondary">{percent}%</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {p.row.progress ? `${p.row.progress.value}/${p.row.progress.target}` : '—'}
+              </Typography>
+            </Stack>
+          </Box>
+        )
+      },
+    },
+    {
+      field: 'remaining',
+      headerName: 'Pozostało',
+      width: 120,
+      renderCell: (p) => {
+        const rem = p.row.progress?.remaining
+        if (rem == null) return <span>—</span>
+        return <span>{rem} {p.row.metric === 'duration' ? 'min' : p.row.metric === 'calories' ? 'kcal' : 'sesji'}</span>
+      }
+    },
+    {
+      field: 'progress_status',
+      headerName: 'Status',
+      width: 130,
+      sortable: false,
+      renderCell: (p) => {
+        const s = p.row.progress?.status
+        return <Chip size="small" label={statusLabel(s)} color={statusChipColor(s)} variant="outlined" />
+      },
+    },
     {
       field: 'actions',
       type: 'actions',
       headerName: '',
-      width: 100,
+      width: 120,
       getActions: (params) => [
+        <GridActionsCellItem key="quick" icon={<FitnessCenterIcon />} label="Dodaj sesję" onClick={() => openQuickSession(params.row as GoalRow)} />,
         <GridActionsCellItem key="edit" icon={<EditIcon />} label="Edytuj" onClick={() => openEdit(params.row as GoalRow)} />,
         <GridActionsCellItem key="del" icon={<DeleteIcon />} label="Usuń" onClick={() => del(params.id as number)} showInMenu={false} />,
       ],
@@ -342,12 +475,50 @@ export default function Goals() {
     await load()
   }
 
+  const [showHow, setShowHow] = useState(false)
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
         <Typography variant="h5">Cele treningowe</Typography>
         <Button startIcon={<RefreshIcon />} onClick={() => load()} disabled={isLoading}>Odśwież</Button>
       </Stack>
+
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
+        <Card sx={{ flex: 1 }}><CardContent>
+          <Typography variant="overline" color="text.secondary">Średni % aktywnych celów</Typography>
+          <Typography variant="h4" fontWeight={800}>{avgPercentActive}%</Typography>
+        </CardContent></Card>
+        <Card sx={{ flex: 1 }}><CardContent>
+          <Typography variant="overline" color="text.secondary">Najlepszy wynik</Typography>
+          <Typography variant="h4" fontWeight={800}>{bestPercent}%</Typography>
+        </CardContent></Card>
+        <Card sx={{ flex: 1 }}><CardContent>
+          <Typography variant="overline" color="text.secondary">Osiągnięte</Typography>
+          <Typography variant="h4" fontWeight={800} color="success.main">{statsByStatus.achieved}</Typography>
+        </CardContent></Card>
+        <Card sx={{ flex: 1 }}><CardContent>
+          <Typography variant="overline" color="text.secondary">Prawie gotowe (≥80%)</Typography>
+          <Typography variant="h4" fontWeight={800} color="warning.main">{statsByStatus.almost}</Typography>
+        </CardContent></Card>
+      </Stack>
+
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <InfoOutlinedIcon fontSize="small" />
+          <Typography variant="subtitle2">Jak to działa?</Typography>
+          <IconButton size="small" onClick={() => setShowHow(s => !s)}><ExpandMoreIcon sx={{ transform: showHow ? 'rotate(180deg)' : 'rotate(0deg)', transition: '.2s' }} /></IconButton>
+        </Stack>
+        <Collapse in={showHow}>
+          <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">
+            Postęp celu liczymy na podstawie <b>Twoich sesji treningowych</b> zapisanych w zakładce „Sesje”
+            lub dodanych szybkim przyciskiem <b>„Dodaj sesję”</b> przy celu.
+            Dla metryki <i>Czas (min)</i> sumujemy minuty, dla <i>Kalorie</i> – sumę kcal, a dla <i>Sesje</i> – liczbę sesji.
+            Liczenie odbywa się w <b>bieżącym oknie</b> (tydzień/miesiąc/rok) pokazanym w kolumnie „Okno”.
+            Jeżeli cel ma przypięty <i>typ ćwiczenia</i>, bierzemy pod uwagę tylko sesje tego typu.
+          </Typography>
+        </Collapse>
+      </Paper>
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={2} alignItems="center">
@@ -389,10 +560,27 @@ export default function Goals() {
               value={filters.to} onChange={(e) => setFilters(f => ({ ...f, to: e.target.value }))} />
           </Grid>
 
-          <Grid item xs={12} md={12}>
-            <Stack direction="row" spacing={1} justifyContent={isSmDown ? 'stretch' : 'flex-end'}>
-              <Button variant="contained" onClick={applyFilters} fullWidth={isSmDown}>Filtruj</Button>
-              <Button onClick={clearFilters} fullWidth={isSmDown}>Wyczyść</Button>
+          <Grid item xs={12}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems="center">
+              <Stack direction="row" spacing={1}>
+                <Button variant="contained" onClick={applyFilters}>Filtruj</Button>
+                <Button onClick={clearFilters}>Wyczyść</Button>
+              </Stack>
+
+              <ToggleButtonGroup
+                size="small"
+                color="primary"
+                value={statusFilter}
+                exclusive
+                onChange={(_, v) => v && setStatusFilter(v)}
+              >
+                <ToggleButton value="all">Wszystkie</ToggleButton>
+                <ToggleButton value="achieved">Osiągnięte</ToggleButton>
+                <ToggleButton value="active">Aktywne</ToggleButton>
+                <ToggleButton value="almost">Prawie gotowe</ToggleButton>
+                <ToggleButton value="overdue">Po terminie</ToggleButton>
+                <ToggleButton value="future">Przyszłe</ToggleButton>
+              </ToggleButtonGroup>
             </Stack>
           </Grid>
         </Grid>
@@ -405,10 +593,15 @@ export default function Goals() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Tooltip />
-                <Legend />
+                <Legend formatter={(v) =>
+                  v === 'achieved' ? 'Osiągnięte' :
+                  v === 'active' ? 'Aktywne' :
+                  v === 'overdue' ? 'Po terminie' :
+                  v === 'future' ? 'Przyszłe' : v
+                }/>
                 <Pie data={charts.statusPie} dataKey="value" nameKey="name" outerRadius={90} label>
                   {charts.statusPie.map((entry) => (
-                    <Cell key={`status-${entry.name}`} fill={STATUS_COLORS[entry.name] || '#90a4ae'} />
+                    <Cell key={`status-${entry.name}`} fill={PIE_STATUS_COLORS[entry.name] || '#90a4ae'} />
                   ))}
                 </Pie>
               </PieChart>
@@ -431,25 +624,6 @@ export default function Goals() {
           </Box>
         </Stack>
       </Paper>
-
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">Łącznie celów</Typography>
-          <Typography variant="h5">{total}</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">Czas (min)</Typography>
-          <Typography variant="h5">{charts.metricBar[0]?.count ?? 0}</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">Kalorie</Typography>
-          <Typography variant="h5">{charts.metricBar[1]?.count ?? 0}</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">Sesje</Typography>
-          <Typography variant="h5">{charts.metricBar[2]?.count ?? 0}</Typography>
-        </Paper>
-      </Stack>
 
       <Paper sx={{ p: 2, mb: 3 }} component="form" onSubmit={handleSubmit(add)}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -480,7 +654,7 @@ export default function Goals() {
       ) : (
         <Paper sx={{ height: 520 }}>
           <DataGrid
-            rows={rows}
+            rows={filteredRows}
             columns={columns}
             getRowId={(row) => row.id}
             pageSizeOptions={[5, 10, 25]}
@@ -520,6 +694,26 @@ export default function Goals() {
         <DialogActions>
           <Button onClick={() => setEditOpen(false)}>Anuluj</Button>
           <Button variant="contained" onClick={editForm.handleSubmit(submitEdit)}>Zapisz zmiany</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={qOpen} onClose={() => setQOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Dodaj sesję {qGoal?.exercise_type ? `– ${qGoal?.exercise_type}` : ''}</DialogTitle>
+        <DialogContent dividers>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 1 }}>
+            <TextField label="Minuty" type="number" sx={{ minWidth: 160 }}
+              {...sessionForm.register('minutes')} error={!!sessionForm.formState.errors.minutes}
+              helperText={sessionForm.formState.errors.minutes?.message} />
+            <TextField label="Kalorie (opcjonalnie)" type="number" sx={{ minWidth: 200 }}
+              {...sessionForm.register('calories')} />
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Sesja zostanie przypisana do typu ćwiczenia z celu (jeśli jest ustawiony).
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQOpen(false)}>Anuluj</Button>
+          <Button variant="contained" onClick={sessionForm.handleSubmit(submitQuickSession)}>Dodaj sesję</Button>
         </DialogActions>
       </Dialog>
 
