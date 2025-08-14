@@ -7,13 +7,14 @@ import {
   Link,
 } from 'react-router-dom';
 
-import { useAuth }        from '@/hooks/auth';
-import Login              from '@/pages/Login';
-import Register           from '@/pages/Register';
-import ExerciseTypes      from '@/pages/ExerciseTypes';
-import Sessions           from '@/pages/Sessions';
-import Goals              from '@/pages/Goals';
-import PrivateRoute       from '@/components/PrivateRoute';
+import { useAuth }   from '@/hooks/auth';
+import Login         from '@/pages/Login';
+import Register      from '@/pages/Register';
+import ExerciseTypes from '@/pages/ExerciseTypes';
+import Sessions      from '@/pages/Sessions';
+import Goals         from '@/pages/Goals';
+import Dashboard     from '@/pages/Dashboard';
+import PrivateRoute  from '@/components/PrivateRoute';
 
 import {
   AppBar,
@@ -36,6 +37,7 @@ function NavBar() {
 
         {token ? (
           <Stack direction="row" spacing={1}>
+            <Button color="inherit" component={Link} to="/dashboard">Pulpit</Button>
             <Button color="inherit" component={Link} to="/types">Ćwiczenia</Button>
             <Button color="inherit" component={Link} to="/sessions">Sesje</Button>
             <Button color="inherit" component={Link} to="/goals">Cele</Button>
@@ -65,7 +67,7 @@ function Layout() {
 
 function HomeRedirect() {
   const { token } = useAuth();
-  return <Navigate to={token ? '/types' : '/login'} replace />;
+  return <Navigate to={token ? '/dashboard' : '/login'} replace />;
 }
 
 export default function App() {
@@ -78,9 +80,10 @@ export default function App() {
 
         <Route element={<PrivateRoute />}>
           <Route element={<Layout />}>
-            <Route path="types"    element={<ExerciseTypes />} />
-            <Route path="sessions" element={<Sessions />} />
-            <Route path="goals"    element={<Goals />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="types"     element={<ExerciseTypes />} />
+            <Route path="sessions"  element={<Sessions />} />
+            <Route path="goals"     element={<Goals />} />
           </Route>
         </Route>
 

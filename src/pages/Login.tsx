@@ -43,7 +43,7 @@ export default function Login() {
     setServerErr(null);
     try {
       await login(data.email, data.password);
-      navigate('/types');
+      navigate('/dashboards');
     } catch (err: any) {
       setServerErr(err.response?.data?.message ?? 'Błąd logowania');
     }
