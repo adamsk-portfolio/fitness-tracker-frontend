@@ -227,5 +227,3 @@ MIT (lub inna — uzupełnij wg potrzeb).
    git commit -m "docs: aktualizacja README (Docker, OAuth, API)"
    git push
    ```
-
-Jeśli chcesz dorzucić sekcję „Screenshots”, podaj mi 2–3 zrzuty, a złożę ładny blok galerii.
