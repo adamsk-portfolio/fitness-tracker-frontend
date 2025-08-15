@@ -15,6 +15,7 @@ import Sessions      from '@/pages/Sessions';
 import Goals         from '@/pages/Goals';
 import Dashboard     from '@/pages/Dashboard';
 import PrivateRoute  from '@/components/PrivateRoute';
+import LoginOAuth    from '@/pages/LoginOAuth'; // ✅ właściwy import
 
 import {
   AppBar,
@@ -74,9 +75,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/"         element={<HomeRedirect />} />
-        <Route path="/login"    element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/"              element={<HomeRedirect />} />
+        <Route path="/login"         element={<Login />} />
+        <Route path="/register"      element={<Register />} />
+        <Route path="/login/oauth"   element={<LoginOAuth />} /> {/* ✅ callback */}
 
         <Route element={<PrivateRoute />}>
           <Route element={<Layout />}>

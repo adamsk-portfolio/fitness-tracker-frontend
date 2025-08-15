@@ -28,7 +28,6 @@ api.interceptors.response.use(
 
 export default api;
 
-
 export async function fetchGoalsWithProgress(): Promise<Goal[]> {
   const res = await api.get<{ items: Goal[] }>('/goals', {
     params: { with_progress: 'true', page: 1, page_size: 100 },
@@ -37,6 +36,11 @@ export async function fetchGoalsWithProgress(): Promise<Goal[]> {
 }
 
 export async function login(email: string, password: string): Promise<string> {
-  const res = await api.post<{ access_token: string }>('/auth/login', { email, password });
+  const res = await api.post<{ access_token: string }>(
+    '/auth/login',
+    { email, password },
+  );
   return res.data.access_token;
 }
+
+export const GOOGLE_LOGIN_URL = '/api/auth/google/login';
