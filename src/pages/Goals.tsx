@@ -2,15 +2,13 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Box, Paper, Stack, TextField, MenuItem, Button, Typography, Alert, CircularProgress, Snackbar,
   Dialog, DialogTitle, DialogContent, DialogActions, Grid, useMediaQuery, useTheme, Chip, LinearProgress,
-  ToggleButton, ToggleButtonGroup, Card, CardContent, Collapse, IconButton
+  ToggleButton, ToggleButtonGroup, Card, CardContent
 } from '@mui/material'
 import MuiAlert from '@mui/material/Alert'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 import { useForm } from 'react-hook-form'
@@ -481,8 +479,6 @@ export default function Goals() {
     await load()
   }
 
-  const [showHow, setShowHow] = useState(false)
-
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -509,23 +505,7 @@ export default function Goals() {
         </CardContent></Card>
       </Stack>
 
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <InfoOutlinedIcon fontSize="small" />
-          <Typography variant="subtitle2">Jak to działa?</Typography>
-          <IconButton size="small" onClick={() => setShowHow(s => !s)}><ExpandMoreIcon sx={{ transform: showHow ? 'rotate(180deg)' : 'rotate(0deg)', transition: '.2s' }} /></IconButton>
-        </Stack>
-        <Collapse in={showHow}>
-          <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">
-            Postęp celu liczymy na podstawie <b>Twoich sesji treningowych</b> zapisanych w zakładce „Sesje”
-            lub dodanych szybkim przyciskiem <b>„Dodaj sesję”</b> przy celu.
-            Dla metryki <i>Czas (min)</i> sumujemy minuty, dla <i>Kalorie</i> – sumę kcal, a dla <i>Sesje</i> – liczbę sesji.
-            Liczenie odbywa się w <b>bieżącym oknie</b> (tydzień/miesiąc/rok) pokazanym w kolumnie „Okno”.
-            Jeżeli cel ma przypięty <i>typ ćwiczenia</i>, bierzemy pod uwagę tylko sesje tego typu.
-          </Typography>
-        </Collapse>
-      </Paper>
-
+      {/* FILTRY — tylko pasek statusów */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12}>
