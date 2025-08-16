@@ -394,11 +394,11 @@ export default function Goals() {
 
   const columns: GridColDef[] = [
     {
-      field: 'exercise_type',
-      headerName: 'Typ ćwiczenia',
-      minWidth: 180,
-      flex: 1,
-      renderCell: (p) => <span title={String(p.row.exercise_type ?? '')}>{dash(p.row.exercise_type)}</span>,
+      field: 'description',
+      headerName: 'Opis celu',
+      minWidth: 220,
+      flex: 1.2,
+      renderCell: (p) => <span title={String(p.row.description ?? '')}>{dash(p.row.description)}</span>,
     },
     {
       field: 'window',
