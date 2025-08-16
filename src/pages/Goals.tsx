@@ -505,7 +505,6 @@ export default function Goals() {
         </CardContent></Card>
       </Stack>
 
-      {/* FILTRY — tylko pasek statusów */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12}>
