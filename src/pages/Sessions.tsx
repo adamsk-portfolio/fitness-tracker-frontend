@@ -29,6 +29,7 @@ const newSessionSchema = z.object({
   typeId: z.string().min(1, 'Wybierz typ'),
   duration: z.string().min(1, 'Podaj czas').refine((v) => Number(v) > 0, 'Musi być > 0'),
   calories: z.string().min(1, 'Podaj kcal').refine((v) => Number(v) > 0, 'Musi być > 0'),
+  date: z.string().optional(),
 });
 type NewSession = z.infer<typeof newSessionSchema>;
 
@@ -84,17 +85,22 @@ export default function Sessions() {
     formState: { errors, isSubmitting },
   } = useForm<NewSession>({
     resolver: zodResolver(newSessionSchema),
-    defaultValues: { typeId: '' },
+    defaultValues: { typeId: '', date: '' },
   });
 
   const add = async (data: NewSession) => {
     try {
-      await api.post('/sessions', {
+      const payload: any = {
         exercise_type_id: Number(data.typeId),
         duration: Number(data.duration),
         calories: Number(data.calories),
-      });
-      reset({ typeId: '', duration: '', calories: '' });
+      };
+      if (data.date) {
+        payload.date = new Date(data.date).toISOString();
+      }
+
+      await api.post('/sessions', payload);
+      reset({ typeId: '', duration: '', calories: '', date: '' });
       load();
     } catch (err: any) {
       setError(err.response?.data?.message ?? 'Nie udało się dodać sesji');
@@ -180,6 +186,15 @@ export default function Sessions() {
             helperText={errors.calories?.message}
           />
 
+          <TextField
+            label="Data"
+            type="datetime-local"
+            sx={{ minWidth: 220 }}
+            InputLabelProps={{ shrink: true }}
+            {...register('date')}
+            helperText="Opcjonalnie — kiedy wykonano sesję"
+          />
+
           <Button variant="contained" type="submit" disabled={isSubmitting}>
             {isSubmitting ? '...' : 'Dodaj'}
           </Button>
@@ -195,7 +210,6 @@ export default function Sessions() {
           <DataGrid
             rows={rows}
             columns={columns}
-            // KLUCZEM wiersza jest db_id – unikalny w całej bazie
             getRowId={(row) => (row as SessionRow).db_id}
             pageSizeOptions={[5, 10, 25, 50]}
             initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
