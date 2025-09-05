@@ -1,229 +1,80 @@
 # Fitness Tracker — Flask + React (Docker)
+[![CI](https://github.com/AdamSk1234/fitness-tracker/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AdamSk1234/fitness-tracker/actions/workflows/ci.yml)
 
 Aplikacja do śledzenia treningów: typy ćwiczeń, sesje, cele i wykresy postępów.
 **Backend:** Flask (REST, SQLAlchemy, JWT, Google OAuth) • **Frontend:** React + TypeScript + MUI • **Infra:** Docker + Nginx + Alembic
 
 ---
 
-## Najważniejsze funkcje
+<p align="center">
+  <img src="docs/FitnessTrackerFilm.gif" alt="App demo" style="max-width: 950px; width: 100%;">
+</p>
 
-* Rejestracja i logowanie (JWT) + **Logowanie przez Google (OAuth2/OIDC)**
-* Sesje treningowe: czas (min), kalorie, data, typ ćwiczenia
-* Cele z metrykami: `duration` / `calories` / `sessions` i oknami: tydzień / miesiąc / rok
-* Dashboard z wykresami i szybkim podglądem postępów
-* API REST (Flask-RESTful), migracje bazy (Alembic/Flask-Migrate)
-* Build produkcyjny przez Docker Compose (Nginx serwuje frontend, proxy dla API)
+## Highlights
 
----
-
-## Stos technologiczny
-
-**Backend:** Python 3.12, Flask 3, Flask-RESTful, SQLAlchemy 2, Flask-JWT-Extended, Authlib (Google), Flask-Migrate, Gunicorn
-**Frontend:** React + TypeScript + Vite, Material UI, Axios, React Router, Recharts
-**Infra:** Docker, Docker Compose, Nginx, SQLite (domyślnie)
+- Email/password auth (JWT) **and** Google Sign-In (OAuth2/OIDC)
+- Workout sessions: date, duration (min), calories, exercise type
+- Goals with metrics (`duration`, `calories`, `sessions`) and windows (week / month / year)
+- Dashboard with charts and quick progress overview
+- Clean REST API (Flask-RESTful), DB migrations with Alembic/Flask-Migrate
+- Production build via Docker Compose (Nginx serves the SPA and proxies the API)
 
 ---
 
-## Szybki start (Docker)
+## Tech Stack
 
-1. Utwórz plik `.env` w katalogu głównym (patrz sekcja **Zmienne środowiskowe**).
-2. Zbuduj i uruchom:
-
-   ```bash
-   docker compose up -d --build
-   ```
-3. Zastosuj migracje bazy:
-
-   ```bash
-   docker compose exec backend flask --app backend.app db upgrade
-   ```
-4. Otwórz: **[http://localhost:8080](http://localhost:8080)**
-   (API jest pod **[http://localhost:5000/api/](http://localhost:5000/api/)**)
+**Backend:** Python 3.12, Flask 3, Flask-RESTful, SQLAlchemy 2, Flask-JWT-Extended, Authlib (Google), Flask-Migrate, Gunicorn  
+**Frontend:** React + TypeScript + Vite, Material UI, Axios, React Router, Recharts  
+**Infra:** Docker & Docker Compose, Nginx, SQLite by default (easy to switch to Postgres)
 
 ---
 
-## Logowanie przez Google (OAuth)
+## Quick start (Docker)
 
-1. Wejdź do **Google Cloud Console → APIs & Services → Credentials** i utwórz **OAuth 2.0 Client ID**:
+1) Create a `.env` file in the repo root (see **Environment variables** below).
 
-   * **Authorized JavaScript origins:** `http://localhost:8080`
-   * **Authorized redirect URIs:** `http://localhost:5000/api/auth/google/callback`
-2. Uzupełnij w `.env` wartości `GOOGLE_CLIENT_ID` i `GOOGLE_CLIENT_SECRET`.
-3. Przebuduj backend, by wczytał zmienne:
+2) Build and start the stack:
+```bash
+docker compose up -d --build
+````
 
-   ```bash
-   docker compose up -d --build backend
-   ```
-4. Na stronie logowania kliknij **Zaloguj przez Google**. Po sukcesie backend przekieruje na
-   `FRONTEND_OAUTH_REDIRECT` (domyślnie `/login/oauth`) z tokenem JWT.
-
----
-
-## Zmienne środowiskowe (`.env`)
-
-Minimalny przykład dla dev:
-
-```env
-# JWT
-JWT_SECRET_KEY=super-dev-jwt-secret
-
-# Flask session (OAuth wymaga cookies na state/nonce)
-SECRET_KEY=super-dev-session-secret
-SESSION_SAMESITE=Lax
-SESSION_SECURE=False
-SESSION_COOKIE_NAME=session
-
-# Google OAuth
-GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=yyy
-FRONTEND_OAUTH_REDIRECT=http://localhost:8080/login/oauth
-
-# CORS
-CORS_ORIGINS=http://localhost:8080
-
-# (opcjonalnie) baza – domyślnie SQLite w kontenerze
-# DATABASE_URL=sqlite:////app/db/fitness.db
-```
-
-> Uwaga: w produkcji ustaw `SESSION_SECURE=True` (HTTPS) i użyj silnych sekretów.
-
----
-
-## Migracje bazy
-
-Po każdej zmianie modeli (pliki w `backend/models.py`):
+3. Apply DB migrations:
 
 ```bash
-# wygeneruj migrację
-docker compose exec backend flask --app backend.app db migrate -m "opis zmiany"
-
-# zastosuj migrację
 docker compose exec backend flask --app backend.app db upgrade
 ```
 
-> Dla SQLite pamiętaj o jawnych nazwach constraintów i `op.batch_alter_table(...)` w migracjach.
+4. Open the app:
+
+* UI: **[http://localhost:8080](http://localhost:8080)**
+* API: **[http://localhost:5000/api/](http://localhost:5000/api/)**
 
 ---
 
-## API (skrót)
+## Frontend routes
 
-**Auth**
-
-* `POST /api/auth/register` — rejestracja
-* `POST /api/auth/login` — logowanie (JWT)
-* `GET  /api/auth/google/login` — start OAuth (Google)
-* `GET  /api/auth/google/callback` — callback (Google → JWT + redirect)
-
-**Ćwiczenia**
-
-* `GET/POST /api/exercise-types`, `GET/PUT/DELETE /api/exercise-types/:id`
-
-**Sesje**
-
-* `GET/POST /api/sessions`, `GET/PUT/DELETE /api/sessions/:id`
-
-**Cele**
-
-* `GET/POST /api/goals`, `GET/PUT/DELETE /api/goals/:id`
-
-**Raporty**
-
-* `GET /api/reports/summary`
-
-> Autoryzacja: `Authorization: Bearer <JWT>`.
+* `/login` — login form + Google button
+* `/login/oauth` — OAuth callback handler (stores JWT and redirects)
+* `/register` — signup
+* `/dashboard` — main overview with charts
+* `/types` — exercise types CRUD
+* `/sessions` — session list/create
+* `/goals` — goals and progress
 
 ---
-
-## Trasy frontendu
-
-* `/login` — logowanie + przycisk Google
-* `/login/oauth` — callback (zapis JWT i przekierowanie)
-* `/register` — rejestracja
-* `/dashboard` — pulpit z przeglądem
-* `/types` — typy ćwiczeń
-* `/sessions` — lista/dodawanie sesji
-* `/goals` — cele i postęp
-
----
-
-## Przydatne komendy
 
 ```bash
-# uruchom cały stack
+# run the whole stack
 docker compose up -d
 
-# przebuduj i uruchom backend / frontend
+# rebuild single services
 docker compose up -d --build backend
 docker compose up -d --build frontend
 
-# logi
+# logs
 docker compose logs -f backend
 docker compose logs -f frontend
 
-# zatrzymanie
+# stop & remove
 docker compose down
 ```
-
----
-
-## Struktura projektu
-
-```
-backend/
-  app.py
-  config.py
-  extensions.py
-  models.py
-  resources/
-    auth.py
-    exercise.py
-    session.py
-    goal.py
-    report.py
-    oauth_google.py
-  utils/
-    errors.py
-    logging.py
-frontend/
-  src/
-    pages/
-      Login.tsx
-      Register.tsx
-      Dashboard.tsx
-      Sessions.tsx
-      Goals.tsx
-      OAuthCallback.tsx
-    components/
-    hooks/
-  nginx.conf
-migrations/
-docker-compose.yaml
-.env
-```
-
----
-
-## Roadmapa (skrót)
-
-* Testy (backend i frontend)
-* Postgres jako alternatywna baza
-* Eksport/Import danych (CSV)
-* CI (lint + testy) i autodeploy
-
----
-
-## Licencja
-
-MIT (lub inna — uzupełnij wg potrzeb).
-
-**Jak zaktualizować README teraz**
-
-1. Otwórz `README.md`.
-2. Wklej całość powyżej (bez dodatkowych czterech backticków na początku/końcu).
-3. Zapisz i wypchnij:
-
-   ```bash
-   git add README.md
-   git commit -m "docs: aktualizacja README (Docker, OAuth, API)"
-   git push
-   ```
