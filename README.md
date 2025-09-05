@@ -1,7 +1,8 @@
 # Fitness Tracker — Flask + React (Docker)
 [![CI](https://github.com/AdamSk1234/fitness-tracker/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AdamSk1234/fitness-tracker/actions/workflows/ci.yml)
 
-Aplikacja do śledzenia treningów: typy ćwiczeń, sesje, cele i wykresy postępów.
+
+A full-stack app for tracking workouts — exercise types, sessions, goals, and progress charts.  
 **Backend:** Flask (REST, SQLAlchemy, JWT, Google OAuth) • **Frontend:** React + TypeScript + MUI • **Infra:** Docker + Nginx + Alembic
 
 ---
@@ -62,6 +63,8 @@ docker compose exec backend flask --app backend.app db upgrade
 * `/goals` — goals and progress
 
 ---
+
+## Useful commands
 
 ```bash
 # run the whole stack
